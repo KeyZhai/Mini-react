@@ -139,47 +139,48 @@ const reconcileChildren = (wipFiber, elements) => {
   let index = 0;
   let oldFiber = wipFiber.alternate?.child;
   let prevSibling = null; // 用于构建新 Fiber 节点的 sibling 链表
-
-  const element = elements[index];
-  let newFiber = null;
-  const sameType = oldFiber && element && element.type === oldFiber.type;
-  // 更新节点
-  if (sameType) {
-    newFiber = {
-      type: oldFiber.type,
-      props: element.props,
-      dom: oldFiber.dom,
-      return: wipFiber,
-      alternate: oldFiber,
-      effectTag: "UPDATE",
-    };
+  while (index < elements.length || oldFiber) {
+    const element = elements[index];
+    let newFiber = null;
+    const sameType = oldFiber && element && element.type === oldFiber.type;
+    // 更新节点
+    if (sameType) {
+      newFiber = {
+        type: oldFiber.type,
+        props: element.props,
+        dom: oldFiber.dom,
+        return: wipFiber,
+        alternate: oldFiber,
+        effectTag: "UPDATE",
+      };
+    }
+    // 新增节点
+    if (!sameType && element) {
+      newFiber = {
+        type: element.type,
+        props: element.props,
+        dom: null, //dom在后续 commit 阶段创建
+        return: wipFiber,
+        alternate: null, //新创建的 fiber 没有 alternate
+        effectTag: "PLACEMENT",
+      };
+    }
+    // 删除节点
+    if (oldFiber && !sameType) {
+      oldFiber.effectTag = "DELETION";
+      deletions.push(oldFiber);
+    }
+    if (oldFiber) {
+      oldFiber = oldFiber.sibling;
+    }
+    if (index === 0) {
+      wipFiber.child = newFiber;
+    } else if (element) {
+      prevSibling.sibling = newFiber;
+    }
+    prevSibling = newFiber;
+    index++;
   }
-  // 新增节点
-  if (!sameType && element) {
-    newFiber = {
-      type: element.type,
-      props: element.props,
-      dom: null, //dom在后续 commit 阶段创建
-      return: wipFiber,
-      alternate: null, //新创建的 fiber 没有 alternate
-      effectTag: "PLACEMENT",
-    };
-  }
-  // 删除节点
-  if (oldFiber && !sameType) {
-    oldFiber.effectTag = "DELETION";
-    deletions.push(oldFiber);
-  }
-  if (oldFiber) {
-    oldFiber = oldFiber.sibling;
-  }
-  if (index === 0) {
-    wipFiber.child = newFiber;
-  } else if (element) {
-    prevSibling.sibling = newFiber;
-  }
-  prevSibling = newFiber;
-  index++;
 };
 
 requestIdleCallback(workLoop);
