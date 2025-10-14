@@ -183,10 +183,45 @@ const reconcileChildren = (wipFiber, elements) => {
   }
 };
 
+function useState(initialState) {
+  const currentFiber = wipFiber;
+  const oldHook = currentFiber.alternate?.stateHooks?.[stateHookIndex];
+  const stateHook = {
+    state: oldHook ? oldHook.state : initialState,
+    queue: oldHook ? oldHook.queue : [],
+  };
+
+  queue.forEach((action) => {
+    stateHook.state = action(stateHook.state);
+  });
+
+  queue = [];
+  stateHookIndex++;
+  wipFiber.stateHooks.push(stateHook);
+
+  function setState(action) {
+    const isFunction = action instanceof Function;
+    stateHook.queue.push(isFunction ? action : () => action);
+    //触发重新渲染
+    wipRoot = {
+      ...currentFiber,
+      alternate: currentFiber,
+    };
+    nextUnitOfWork = wipRoot;
+  }
+
+  return [stateHook.state, setState];
+}
+
+function useEffect(callbacks, deps) {}
+
 requestIdleCallback(workLoop);
 
 const MiniReact = {
   createElement,
+  render,
+  useState,
+  useEffect,
 };
 
 window.MiniReact = MiniReact;
