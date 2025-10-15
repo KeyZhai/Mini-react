@@ -1,5 +1,6 @@
 "use strict";
 (function () {
+    //将 jsx => createElement
     function createElement(type, props, ...children) {
         return {
             type,
@@ -18,10 +19,15 @@
             },
         };
     }
+    //下一个工作单元
     let nextUnitOfWork = null;
+    //work in progress root (正在处理的 fiber 链表的根 root)
     let wipRoot = null;
+    //之前的历史 fiber 链表的根 currentRoot
     let currentRoot = null;
+    //记录需要删除的节点
     let deletions = null;
+    //render => Element => Fiber(vdom)
     function render(element, container) {
         wipRoot = {
             dom: container,
@@ -33,7 +39,9 @@
         deletions = [];
         nextUnitOfWork = wipRoot;
     }
+    //在浏览器空闲时执行任务
     function workLoop(deadline) {
+        //记录是否停止
         let shouldYield = false;
         while (nextUnitOfWork && !shouldYield) {
             nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
@@ -45,6 +53,7 @@
         requestIdleCallback(workLoop);
     }
     requestIdleCallback(workLoop);
+    //执行当前工作单元，构建 fiber 树 => reconcile
     function performUnitOfWork(fiber) {
         const isFunctionComponent = fiber.type instanceof Function;
         if (isFunctionComponent) {
@@ -53,6 +62,7 @@
         else {
             updateHostComponent(fiber);
         }
+        //构建顺序：child -> sibling -> uncle
         if (fiber.child) {
             return fiber.child;
         }
@@ -64,7 +74,9 @@
             nextFiber = nextFiber.return;
         }
     }
+    //work in progress fiber：正在处理的 fiber
     let wipFiber = null;
+    //追踪当前正在处理的是第几个 useState hook
     let stateHookIndex = null;
     function updateFunctionComponent(fiber) {
         wipFiber = fiber;
@@ -76,6 +88,7 @@
     }
     function updateHostComponent(fiber) {
         if (!fiber.dom) {
+            //只是创建 dom,存储在 fiber 上，还没有插入到页面
             fiber.dom = createDom(fiber);
         }
         reconcileChildren(fiber, fiber.props.children);
@@ -125,11 +138,15 @@
     }
     function reconcileChildren(wipFiber, elements) {
         var _a;
+        // index 新子元素数组的索引
         let index = 0;
+        // oldFiber 旧fiber 元素的第一个子节点
         let oldFiber = (_a = wipFiber.alternate) === null || _a === void 0 ? void 0 : _a.child;
+        // 新 fiber 树的前一个兄弟节点
         let prevSibling = null;
         while (index < elements.length || oldFiber != null) {
             const element = elements[index];
+            // 新的 fiber 节点
             let newFiber = null;
             const sameType = (element === null || element === void 0 ? void 0 : element.type) == (oldFiber === null || oldFiber === void 0 ? void 0 : oldFiber.type);
             if (sameType) {
@@ -200,13 +217,21 @@
         wipFiber.effectHooks.push(effectHook);
     }
     function commitRoot() {
+        //before mutation 更新 dom 前
+        //执行 getSnapShotBeforeUpdate ，调度 useEffect(异步)
+        const snapshot = wipRoot;
+        requestIdleCallback(() => {
+            commitEffectHooks(snapshot);
+        });
+        //mutation 更新 dom：mutation 阶段会把 reconcile 阶段创建好的 dom 更新到 dom 树
         deletions.forEach(commitWork);
         commitWork(wipRoot.child);
-        commitEffectHooks();
         currentRoot = wipRoot;
         wipRoot = null;
         deletions = [];
+        //layout 更新 dom 后，paint之前 调度 useLayoutEffect(同步)
     }
+    //递归的将 fiber 上的 dom 插入到页面
     function commitWork(fiber) {
         if (!fiber) {
             return;
@@ -247,7 +272,8 @@
         }
         return true;
     }
-    function commitEffectHooks() {
+    function commitEffectHooks(root) {
+        //先执行旧 fiber 树 useEffect 的返回的 cleanup
         function runCleanup(fiber) {
             var _a, _b;
             if (!fiber)
@@ -262,6 +288,7 @@
             runCleanup(fiber.child);
             runCleanup(fiber.sibling);
         }
+        //再执行新的 fiber 树 useEffect 的 callback
         function run(fiber) {
             var _a;
             if (!fiber)
@@ -285,8 +312,8 @@
             run(fiber.child);
             run(fiber.sibling);
         }
-        runCleanup(wipRoot);
-        run(wipRoot);
+        runCleanup(root);
+        run(root);
     }
     const MiniReact = {
         createElement,

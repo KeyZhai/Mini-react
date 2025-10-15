@@ -86,7 +86,9 @@
     }
   }
 
+  //work in progress fiber：正在处理的 fiber
   let wipFiber = null;
+  //追踪当前正在处理的是第几个 useState hook
   let stateHookIndex = null;
 
   function updateFunctionComponent(fiber) {
@@ -101,6 +103,7 @@
 
   function updateHostComponent(fiber) {
     if (!fiber.dom) {
+      //只是创建 dom,存储在 fiber 上，还没有插入到页面
       fiber.dom = createDom(fiber);
     }
     reconcileChildren(fiber, fiber.props.children);
@@ -159,12 +162,16 @@
   }
 
   function reconcileChildren(wipFiber, elements) {
+    // index 新子元素数组的索引
     let index = 0;
+    // oldFiber 旧fiber 元素的第一个子节点
     let oldFiber = wipFiber.alternate?.child;
+    // 新 fiber 树的前一个兄弟节点
     let prevSibling = null;
 
     while (index < elements.length || oldFiber != null) {
       const element = elements[index];
+      // 新的 fiber 节点
       let newFiber = null;
 
       const sameType = element?.type == oldFiber?.type;
@@ -253,14 +260,22 @@
   }
 
   function commitRoot() {
+    //before mutation 更新 dom 前
+    //执行 getSnapShotBeforeUpdate ，调度 useEffect(异步)
+    const snapshot = wipRoot;
+    setTimeout(() => {
+      commitEffectHooks(snapshot);
+    }, 0);
+    //mutation 更新 dom：mutation 阶段会把 reconcile 阶段创建好的 dom 更新到 dom 树
     deletions.forEach(commitWork);
     commitWork(wipRoot.child);
-    commitEffectHooks();
     currentRoot = wipRoot;
     wipRoot = null;
     deletions = [];
+    //layout 更新 dom 后，paint之前 调度 useLayoutEffect(同步)
   }
 
+  //递归的将 fiber 上的 dom 插入到页面
   function commitWork(fiber) {
     if (!fiber) {
       return;
@@ -305,7 +320,8 @@
     return true;
   }
 
-  function commitEffectHooks() {
+  function commitEffectHooks(root) {
+    //先执行旧 fiber 树 useEffect 的返回的 cleanup
     function runCleanup(fiber) {
       if (!fiber) return;
 
@@ -321,6 +337,7 @@
       runCleanup(fiber.sibling);
     }
 
+    //再执行新的 fiber 树 useEffect 的 callback
     function run(fiber) {
       if (!fiber) return;
 
@@ -347,8 +364,8 @@
       run(fiber.sibling);
     }
 
-    runCleanup(wipRoot);
-    run(wipRoot);
+    runCleanup(root);
+    run(root);
   }
 
   const MiniReact = {
