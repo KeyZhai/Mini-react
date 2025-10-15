@@ -1,4 +1,5 @@
 (function () {
+  //将 jsx => createElement
   function createElement(type, props, ...children) {
     return {
       type,
@@ -22,12 +23,16 @@
       },
     };
   }
-
+  //下一个工作单元
   let nextUnitOfWork = null;
+  //work in progress root (正在处理的 fiber 链表的根 root)
   let wipRoot = null;
+  //之前的历史 fiber 链表的根 currentRoot
   let currentRoot = null;
+  //记录需要删除的节点
   let deletions = null;
 
+  //render => Element => Fiber(vdom)
   function render(element, container) {
     wipRoot = {
       dom: container,
@@ -42,7 +47,9 @@
     nextUnitOfWork = wipRoot;
   }
 
+  //在浏览器空闲时执行任务
   function workLoop(deadline) {
+    //记录是否停止
     let shouldYield = false;
     while (nextUnitOfWork && !shouldYield) {
       nextUnitOfWork = performUnitOfWork(nextUnitOfWork);
@@ -58,6 +65,7 @@
 
   requestIdleCallback(workLoop);
 
+  //执行当前工作单元，构建 fiber 树 => reconcile
   function performUnitOfWork(fiber) {
     const isFunctionComponent = fiber.type instanceof Function;
     if (isFunctionComponent) {
@@ -65,6 +73,7 @@
     } else {
       updateHostComponent(fiber);
     }
+    //构建顺序：child -> sibling -> uncle
     if (fiber.child) {
       return fiber.child;
     }
